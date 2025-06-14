@@ -9,25 +9,25 @@ go run main.go
 
 Write example:
 
-```http
+```sh
 curl -X POST http://localhost:8080/write \
   -H "Content-Type: application/json" \
   -d '{"key": "user:1", "value": "Jessica"}'
 ```
 
 Read from the Leader:
-```http
+```sh
 curl "http://localhost:8080/read?key=user:1"
 ```
 
 Read from specific follower(simulates some delay). If you try this right after writing you may get a 404 if replication hasn’t completed yet:
 
-```http
+```sh
 curl "http://localhost:8080/follower-read?key=user:1&replica=1"
 ```
 
 Read with repair - this simulates an eventual consistency repair mechanism:
-```http
+```sh
 curl "http://localhost:8080/read-with-repair?key=user:1"
 ```
 
