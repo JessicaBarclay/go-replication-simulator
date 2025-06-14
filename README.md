@@ -1,9 +1,14 @@
-# Leader based replication - in Golang
+# 🌀 Leader-Based Replication in Golang
 
-![basic-architecture](basic-architecture.png)
+A small simulation of leader-based replication using Go, with support for asynchronous replication, read repair, quorum reads/writes, and a simple write-ahead log (WAL) for durability.
 
-Run the application:
-```go
+![Basic Architecture](basic-architecture.png)
+
+---
+
+## 🚀 Run the Application
+
+```bash
 go run main.go
 ```
 
@@ -73,3 +78,14 @@ WAL - Perform a request, stop the server, reboot and you should see WAL logs(the
 2025/06/14 16:20:50 [WAL REPLAY] Restored key=user:xyz value=Monzo
 2025/06/14 16:20:50 Application running at http://localhost:8080
 ```
+
+🧠 Features Demonstrated
+Leader-based write path
+
+Asynchronous replication
+
+Read repair with latest-value reconciliation
+
+Quorum write acknowledgement (W)
+
+Durable write-ahead logging (WAL)
