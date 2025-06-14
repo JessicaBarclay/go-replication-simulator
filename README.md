@@ -42,3 +42,17 @@ Example logs for POST read-with-repair when replicas are called before replicati
 2025/06/14 16:06:48 [REPAIR] Repaired leader with key=user:1
 2025/06/14 16:06:48 [REPAIR] Repaired follower 1 with key=user:1
 ```
+Quorum read/writes. Simulates realistic durability guarantees (W replicas). A precursor to stronger consistency and failover resilience.:
+```sh
+curl -X POST http://localhost:8080/write-with-quorum \
+  -H "Content-Type: application/json" \
+  -d '{"key":"user:123","value":"Jessica","w":2}'
+```
+Logs:
+```sh
+➜  go-replication-simulation (main) go run main.go                                                                      ✭
+2025/06/14 16:13:32 Application running at http://localhost:8080
+2025/06/14 16:14:10 Leader wrote key=user:123 value=Jessica
+2025/06/14 16:14:11 [QUORUM] Replicated key=user:123 to follower 1
+2025/06/14 16:14:11 [QUORUM] Replicated key=user:123 to follower 2
+```

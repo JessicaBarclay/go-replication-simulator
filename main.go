@@ -21,6 +21,7 @@ var (
 type WriteRequest struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
+	W     int    `json:"w"` // quorum size (optional, default = 1)
 }
 
 func writeHandler(w http.ResponseWriter, r *http.Request) {
@@ -137,11 +138,53 @@ func followerReadHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(rec)
 }
 
+func writeWithQuorumHandler(w http.ResponseWriter, r *http.Request) {
+	var req WriteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if req.W == 0 {
+		req.W = 1 // default write quorum
+	}
+
+	// Always write to leader first
+	leaderStore.Set(req.Key, req.Value)
+	log.Printf("Leader wrote key=%s value=%s", req.Key, req.Value)
+
+	// Synchronously write to followers to reach quorum
+	acks := 1 // already have 1 from leader
+	errCh := make(chan error, len(followerStores))
+
+	for i, follower := range followerStores {
+		go func(idx int, f *store.Store) {
+			time.Sleep(time.Duration(200+idx*300) * time.Millisecond) // simulate network lag
+			f.Set(req.Key, req.Value)
+			log.Printf("[QUORUM] Replicated key=%s to follower %d", req.Key, idx+1)
+			errCh <- nil
+		}(i, follower)
+	}
+
+	timeout := time.After(2 * time.Second)
+	for acks < req.W {
+		select {
+		case <-errCh:
+			acks++
+		case <-timeout:
+			http.Error(w, "quorum write timeout", http.StatusGatewayTimeout)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func main() {
 	http.HandleFunc("/write", writeHandler)
 	http.HandleFunc("/read", readHandler)
 	http.HandleFunc("/follower-read", followerReadHandler)
 	http.HandleFunc("/read-with-repair", readWithRepairHandler)
+	http.HandleFunc("/write-with-quorum", writeWithQuorumHandler)
 
 	log.Println("Application running at http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
