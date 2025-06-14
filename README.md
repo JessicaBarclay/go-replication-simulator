@@ -25,3 +25,20 @@ Read from specific follower(simulates some delay). If you try this right after w
 ```http
 curl "http://localhost:8080/follower-read?key=user:1&replica=1"
 ```
+
+Read with repair - this simulates an eventual consistency repair mechanism:
+```http
+curl "http://localhost:8080/read-with-repair?key=user:1"
+```
+
+Example logs for POST read-with-repair when replicas are called before replication is complete:
+
+```sh
+➜  go-replication-simulation (main) go run main.go                                                                      ✭
+2025/06/14 16:05:52 Application running at http://localhost:8080
+2025/06/14 16:06:47 Leader wrote key=user:1 value=Jessica
+2025/06/14 16:06:47 [ASYNC] Replicated key=user:1 to follower 1
+2025/06/14 16:06:47 [ASYNC] Replicated key=user:1 to follower 2
+2025/06/14 16:06:48 [REPAIR] Repaired leader with key=user:1
+2025/06/14 16:06:48 [REPAIR] Repaired follower 1 with key=user:1
+```

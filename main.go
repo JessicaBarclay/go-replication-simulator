@@ -49,6 +49,64 @@ func replicateToFollowers(req WriteRequest) {
 	}
 }
 
+func readWithRepairHandler(w http.ResponseWriter, r *http.Request) {
+	key := r.URL.Query().Get("key")
+
+	// Collect records from all replicas
+	type versioned struct {
+		storeIdx int
+		record   store.Record
+		found    bool
+	}
+
+	allVersions := []versioned{}
+
+	// Check leader
+	leaderRec, ok := leaderStore.Get(key)
+	allVersions = append(allVersions, versioned{storeIdx: -1, record: leaderRec, found: ok})
+
+	// Check followers
+	for i, follower := range followerStores {
+		rec, ok := follower.Get(key)
+		allVersions = append(allVersions, versioned{storeIdx: i, record: rec, found: ok})
+	}
+
+	// Find the freshest record
+	var latest store.Record
+	var foundLatest bool
+	for _, v := range allVersions {
+		if !v.found {
+			continue
+		}
+		if !foundLatest || v.record.Timestamp.After(latest.Timestamp) {
+			latest = v.record
+			foundLatest = true
+		}
+	}
+
+	if !foundLatest {
+		http.Error(w, "not found in any replica", http.StatusNotFound)
+		return
+	}
+
+	// Repair stale replicas
+	for _, v := range allVersions {
+		if !v.found || v.record.Timestamp.Before(latest.Timestamp) {
+			if v.storeIdx == -1 {
+				// Repair leader
+				leaderStore.Set(latest.Key, latest.Value)
+				log.Printf("[REPAIR] Repaired leader with key=%s", latest.Key)
+			} else {
+				followerStores[v.storeIdx].Set(latest.Key, latest.Value)
+				log.Printf("[REPAIR] Repaired follower %d with key=%s", v.storeIdx+1, latest.Key)
+			}
+		}
+	}
+
+	// Return the latest value to client
+	json.NewEncoder(w).Encode(latest)
+}
+
 func readHandler(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 	rec, ok := leaderStore.Get(key)
@@ -83,6 +141,7 @@ func main() {
 	http.HandleFunc("/write", writeHandler)
 	http.HandleFunc("/read", readHandler)
 	http.HandleFunc("/follower-read", followerReadHandler)
+	http.HandleFunc("/read-with-repair", readWithRepairHandler)
 
 	log.Println("Application running at http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
