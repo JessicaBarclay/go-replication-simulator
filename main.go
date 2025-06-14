@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go-replication-simulation/store"
+	"go-replication-simulation/wal"
 )
 
 var (
@@ -16,6 +17,8 @@ var (
 		store.NewStore(), // follower 1
 		store.NewStore(), // follower 2
 	}
+	walPath  = "leader.wal"
+	leaderWAL *wal.WAL
 )
 
 type WriteRequest struct {
@@ -149,6 +152,17 @@ func writeWithQuorumHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Always write to leader first
+	rec := wal.WALRecord{
+		Key:       req.Key,
+		Value:     req.Value,
+		Timestamp: time.Now(),
+	}
+	if err := leaderWAL.Append(rec); err != nil {
+		log.Printf("[WAL ERROR] Failed to write WAL entry: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	leaderStore.Set(req.Key, req.Value)
 	log.Printf("Leader wrote key=%s value=%s", req.Key, req.Value)
 
@@ -180,6 +194,22 @@ func writeWithQuorumHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	var err error
+	leaderWAL, err = wal.NewWAL(walPath)
+	if err != nil {
+		log.Fatalf("Failed to init WAL: %v", err)
+	}
+
+	// Replay WAL on boot
+	records, err := leaderWAL.ReadAll()
+	if err != nil {
+		log.Fatalf("Failed to read WAL: %v", err)
+	}
+	for _, rec := range records {
+		leaderStore.Set(rec.Key, rec.Value)
+		log.Printf("[WAL REPLAY] Restored key=%s value=%s", rec.Key, rec.Value)
+	}
+
 	http.HandleFunc("/write", writeHandler)
 	http.HandleFunc("/read", readHandler)
 	http.HandleFunc("/follower-read", followerReadHandler)

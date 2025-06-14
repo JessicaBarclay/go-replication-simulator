@@ -56,3 +56,20 @@ Logs:
 2025/06/14 16:14:11 [QUORUM] Replicated key=user:123 to follower 1
 2025/06/14 16:14:11 [QUORUM] Replicated key=user:123 to follower 2
 ```
+
+WAL - Perform a request, stop the server, reboot and you should see WAL logs(they will be stored to disk under leader.wal)
+```
+➜  go-replication-simulation (main) go run main.go                                                                    
+
+2025/06/14 16:20:27 Application running at http://localhost:8080
+2025/06/14 16:20:37 Leader wrote key=user:xyz value=Monzo
+2025/06/14 16:20:37 [QUORUM] Replicated key=user:xyz to follower 1
+2025/06/14 16:20:37 [QUORUM] Replicated key=user:xyz to follower 2
+
+^Csignal: interrupt
+
+➜  go-replication-simulation (main) go run main.go                                                                    ✭ ✱
+
+2025/06/14 16:20:50 [WAL REPLAY] Restored key=user:xyz value=Monzo
+2025/06/14 16:20:50 Application running at http://localhost:8080
+```
